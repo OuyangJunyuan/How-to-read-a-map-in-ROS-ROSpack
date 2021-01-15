@@ -9,7 +9,7 @@
 #include <Eigen/Eigen>
 #include <nav_msgs/OccupancyGrid.h>
 #include <visualization_msgs/Marker.h>
-
+#include <sensor_msgs/PointCloud2.h>
 class MapManager
 {
 private:
@@ -57,6 +57,7 @@ public:
     Eigen::Vector3d coordRounding(const Eigen::Vector3d & coord);
 
     visualization_msgs::Marker get_visOstacle();
+    sensor_msgs::PointCloud2 get_visOstacle3dinPointCloud(float height);
 };
 
 #endif //MAPMANAGER_H

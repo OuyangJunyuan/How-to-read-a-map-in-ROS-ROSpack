@@ -7,10 +7,8 @@
 using namespace std;
 using namespace Eigen;
 
-void MapManager::initMap(nav_msgs::OccupancyGrid::ConstPtr map_msg)
-{
-    if(is_Map)
-    {
+void MapManager::initMap(nav_msgs::OccupancyGrid::ConstPtr map_msg) {
+    if (is_Map) {
         return;
     }
     resolution = map_msg->info.resolution;//    [m/cell]
@@ -19,42 +17,35 @@ void MapManager::initMap(nav_msgs::OccupancyGrid::ConstPtr map_msg)
     GLX_SIZE = map_msg->info.width;
     GLY_SIZE = map_msg->info.height;
     GLZ_SIZE = 1;
-    GLXY_SIZE = GLX_SIZE*GLY_SIZE;
+    GLXY_SIZE = GLX_SIZE * GLY_SIZE;
     GLYZ_SIZE = GLY_SIZE * GLZ_SIZE;
     GLXYZ_SIZE = GLX_SIZE * GLYZ_SIZE;
 
-    gl_xl = -(double)GLX_SIZE/2*resolution;
-    gl_yl = -(double)GLY_SIZE/2*resolution;
+    gl_xl = -(double) GLX_SIZE / 2 * resolution;
+    gl_yl = -(double) GLY_SIZE / 2 * resolution;
     gl_zl = 0;
 
     gl_xu = -gl_xl;
     gl_yu = -gl_yl;
-    gl_zu = (double)GLZ_SIZE*resolution;
+    gl_zu = (double) GLZ_SIZE * resolution;
 
     origin = map_msg->info.origin;
 
-    int inflation_cells = _inflation_dist*inv_resolution;
+    int inflation_cells = _inflation_dist * inv_resolution;
     data.clear();
-    data.assign(GLXYZ_SIZE,-1);
-    for(int idx = 0;idx<map_msg->data.size();++idx)
-    {
+    data.assign(GLXYZ_SIZE, -1);
+    for (int idx = 0; idx < map_msg->data.size(); ++idx) {
         {
-            if(map_msg->data[idx]>0)
-            {
-                for(int x=-inflation_cells;x<=inflation_cells;x++)
-                {
-                    for(int y=-inflation_cells;y<=inflation_cells;y++)
-                    {
-                        int idx_temp = idx+x+y*GLX_SIZE;
-                        if(idx_temp>=0)
-                        {
+            if (map_msg->data[idx] > 0) {
+                for (int x = -inflation_cells; x <= inflation_cells; x++) {
+                    for (int y = -inflation_cells; y <= inflation_cells; y++) {
+                        int idx_temp = idx + x + y * GLX_SIZE;
+                        if (idx_temp >= 0) {
                             data[idx_temp] = 1;
                         }
                     }
                 }
-            }
-            else if(data[idx] != 1)
-            {
+            } else if (data[idx] != 1) {
                 data[idx] = map_msg->data[idx];
             }
         }
@@ -62,6 +53,50 @@ void MapManager::initMap(nav_msgs::OccupancyGrid::ConstPtr map_msg)
     }
 
     is_Map = true;
+}
+
+sensor_msgs::PointCloud2 MapManager::get_visOstacle3dinPointCloud(float height) {
+    int pointstep = 3 * 4;
+    int height_cells = height / resolution;
+    sensor_msgs::PointCloud2 obs_list;
+    obs_list.header.frame_id = "map";
+    obs_list.header.stamp = ros::Time::now();
+    obs_list.point_step = pointstep;
+    obs_list.fields.resize(3);
+    obs_list.fields[0].name = "x";
+    obs_list.fields[0].offset = 0;
+    obs_list.fields[0].datatype = sensor_msgs::PointField::FLOAT32;
+    obs_list.fields[0].count = 1;
+    obs_list.fields[1].name = "y";
+    obs_list.fields[1].offset = 4;
+    obs_list.fields[1].datatype = sensor_msgs::PointField::FLOAT32;
+    obs_list.fields[1].count = 1;
+    obs_list.fields[2].name = "z";
+    obs_list.fields[2].offset = 8;
+    obs_list.fields[2].datatype = sensor_msgs::PointField::FLOAT32;
+    obs_list.fields[2].count = 1;
+    obs_list.data.resize(data.size() * obs_list.point_step * height_cells);
+
+    uint8_t *ptr = obs_list.data.data();
+    for (int idx = 0; idx < data.size(); ++idx) {
+        if (data[idx] > 0) {
+            auto temp_x = (idx % GLX_SIZE) * resolution + origin.position.x;
+            auto temp_y = (idx / GLX_SIZE) * resolution + origin.position.y;
+            for (int height_idx = 0; height_idx < height_cells; ++height_idx,ptr+=obs_list.point_step) {
+                *((float *) (ptr + 0)) = temp_x;
+                *((float *) (ptr + 4)) = temp_y;
+                *((float *) (ptr + 8)) = height_idx * resolution;
+            }
+        }
+    }
+
+
+    obs_list.row_step = obs_list.data.size();
+    obs_list.height = 1;
+    obs_list.width = obs_list.row_step / obs_list.point_step;
+    obs_list.is_bigendian = false;
+    obs_list.is_dense = true;
+    return obs_list;
 }
 
 visualization_msgs::Marker MapManager::get_visOstacle() {
@@ -91,12 +126,10 @@ visualization_msgs::Marker MapManager::get_visOstacle() {
     obs_list.points.clear();
 
     geometry_msgs::Point pt;
-    for(int idx = 0;idx<data.size();++idx)
-    {
-        if(data[idx]>0)
-        {
-            pt.x = (idx%GLX_SIZE)*resolution+origin.position.x;
-            pt.y = (idx/GLX_SIZE)*resolution+origin.position.y;
+    for (int idx = 0; idx < data.size(); ++idx) {
+        if (data[idx] > 0) {
+            pt.x = (idx % GLX_SIZE) * resolution + origin.position.x;
+            pt.y = (idx / GLX_SIZE) * resolution + origin.position.y;
             pt.z = 1;
             obs_list.points.push_back(pt);
         }
@@ -104,8 +137,7 @@ visualization_msgs::Marker MapManager::get_visOstacle() {
     return obs_list;
 }
 
-void MapManager::setObs(const double coord_x, const double coord_y, const double coord_z)
-{
+void MapManager::setObs(const double coord_x, const double coord_y, const double coord_z) {
     if (coord_x < gl_xl || coord_y < gl_yl || coord_z < gl_zl ||
         coord_x >= gl_xu || coord_y >= gl_yu || coord_z >= gl_zu)
         return;
@@ -114,11 +146,10 @@ void MapManager::setObs(const double coord_x, const double coord_y, const double
     int idx_y = static_cast<int>((coord_y - origin.position.y) * inv_resolution);
     int idx_z = static_cast<int>((coord_z - origin.position.z) * inv_resolution);
 
-    data[idx_x + idx_y * GLX_SIZE + idx_z*GLXY_SIZE] = 1;
+    data[idx_x + idx_y * GLX_SIZE + idx_z * GLXY_SIZE] = 1;
 }
 
-Vector3d MapManager::gridIndex2coord(const Vector3i &index)
-{
+Vector3d MapManager::gridIndex2coord(const Vector3i &index) {
     Vector3d pt;
     pt(0) = ((double) index(0)) * resolution + origin.position.x;
     pt(1) = ((double) index(1)) * resolution + origin.position.y;
@@ -127,8 +158,7 @@ Vector3d MapManager::gridIndex2coord(const Vector3i &index)
     return pt;
 }
 
-Vector3i MapManager::coord2gridIndex(const Vector3d &pt)
-{
+Vector3i MapManager::coord2gridIndex(const Vector3d &pt) {
     Vector3i idx;
     idx << min(max(int((pt(0) - origin.position.x) * inv_resolution), 0), GLX_SIZE - 1),
             min(max(int((pt(1) - origin.position.y) * inv_resolution), 0), GLY_SIZE - 1),
@@ -137,29 +167,24 @@ Vector3i MapManager::coord2gridIndex(const Vector3d &pt)
     return idx;
 }
 
-Eigen::Vector3d MapManager::coordRounding(const Eigen::Vector3d &coord)
-{
+Eigen::Vector3d MapManager::coordRounding(const Eigen::Vector3d &coord) {
     return gridIndex2coord(coord2gridIndex(coord));
 }
 
-bool MapManager::isOccupied(const Eigen::Vector3i &index)
-{
+bool MapManager::isOccupied(const Eigen::Vector3i &index) {
     return isOccupied(index(0), index(1), index(2));
 }
 
-bool MapManager::isFree(const Eigen::Vector3i &index)
-{
+bool MapManager::isFree(const Eigen::Vector3i &index) {
     return isFree(index(0), index(1), index(2));
 }
 
-inline bool MapManager::isOccupied(const int &idx_x, const int &idx_y, const int &idx_z) const
-{
+inline bool MapManager::isOccupied(const int &idx_x, const int &idx_y, const int &idx_z) const {
     return (idx_x >= 0 && idx_x < GLX_SIZE && idx_y >= 0 && idx_y < GLY_SIZE && idx_z >= 0 && idx_z < GLZ_SIZE &&
-            (data[idx_x + idx_y * GLX_SIZE + idx_z*GLXY_SIZE] == 1));
+            (data[idx_x + idx_y * GLX_SIZE + idx_z * GLXY_SIZE] == 1));
 }
 
-inline bool MapManager::isFree(const int &idx_x, const int &idx_y, const int &idx_z) const
-{
+inline bool MapManager::isFree(const int &idx_x, const int &idx_y, const int &idx_z) const {
     return (idx_x >= 0 && idx_x < GLX_SIZE && idx_y >= 0 && idx_y < GLY_SIZE && idx_z >= 0 && idx_z < GLZ_SIZE &&
-            (data[idx_x + idx_y * GLX_SIZE + idx_z*GLXY_SIZE] < 1));
+            (data[idx_x + idx_y * GLX_SIZE + idx_z * GLXY_SIZE] < 1));
 }

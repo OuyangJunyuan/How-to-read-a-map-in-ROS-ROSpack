@@ -7,7 +7,7 @@
 
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
-
+#include <sensor_msgs/PointCloud2.h>
 using namespace std;
 using namespace Eigen;
 
@@ -16,7 +16,7 @@ MapManager _MapManager(0.3);
 //	全局变量暂存实时机器人位置（meter）
 geometry_msgs::PoseStamped currentPos;
 //	定义了ROS相关的发布者
-ros::Publisher _obs_vis_pub,_grid_path_vis_pub;
+ros::Publisher _obs_vis_pub,_obs_pc_vis_pub,_grid_path_vis_pub;
 
 //  路径可视化函，grid_path为搜索得到的以地图索引（index）存储的路径
 void visGridPath( std::vector<Eigen::Vector3d> grid_path);
@@ -29,6 +29,7 @@ void callback_map(const nav_msgs::OccupancyGrid::ConstPtr &map_msg)
     if(_MapManager.is_Map)
     {
         _obs_vis_pub.publish(_MapManager.get_visOstacle());
+        _obs_pc_vis_pub.publish(_MapManager.get_visOstacle3dinPointCloud(5));
     }
 }
 
@@ -69,6 +70,7 @@ int main(int argc, char **argv) {
 
     _obs_vis_pub = n.advertise<visualization_msgs::Marker>("vis_obstacle", 1);
     _grid_path_vis_pub = n.advertise<visualization_msgs::Marker>("grid_path_vis", 1);
+    _obs_pc_vis_pub = n.advertise<sensor_msgs::PointCloud2>("vis_obstacle_pc",1);
 
     ros::Subscriber sub_map = n.subscribe("/map",1,callback_map);
     ros::Subscriber sub_goal = n.subscribe("/move_base_simple/goal",1,callback_goal);

@@ -1,3 +1,5 @@
+小恒同学贡献源码
+
 # MapManager
 
 ## 下载编译
@@ -23,7 +25,7 @@ double resolution;//	表示了地图的分辨率,单位为(m/index)
 geometry_msgs::Pose origin;//	表示了地图索引(index)为(0,0,0)的实际位置(meter)
 
 int GLX_SIZE, GLY_SIZE, GLZ_SIZE; //	表示了地图按索引的长宽高的大小
-int GLXYZ_SIZE,GLXY_SIZE, GLYZ_SIZE;//	分别表示了:长x宽x高(表示了栅格地图的大小),长x宽,宽x高
+int GLXYZ_SIZE,GLXY_SIZE, GLYZ_SIZE;//	分别表示了:长x宽x高(表示了栅格地图的大小),长x 宽,宽x高
 ```
 
 
